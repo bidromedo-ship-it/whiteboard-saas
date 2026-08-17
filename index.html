@@ -70,9 +70,9 @@
   <details>
     <summary>⚙️ مفاتيح الاتصال (تُحفظ في متصفحك فقط، لا تُرسل لأي مكان آخر)</summary>
     <div class="field">
-      <label>مفتاح Anthropic API</label>
-      <input type="password" id="anthropicKey" placeholder="sk-ant-..." />
-      <div class="hint">من console.anthropic.com — يُستخدم لتحويل مقالك إلى سيناريو مشاهد.</div>
+      <label>مفتاح Google Gemini API (مجاني)</label>
+      <input type="password" id="anthropicKey" placeholder="AIza..." />
+      <div class="hint">من aistudio.google.com/apikey — مجاني بلا بطاقة دفع، يُستخدم لتحويل مقالك إلى سيناريو مشاهد.</div>
     </div>
     <div class="field">
       <label>مفتاح ElevenLabs API</label>
@@ -145,29 +145,28 @@ function pickIcon(prompt){
   return ICONS.idea;
 }
 
-/* ========== توليد سيناريو المشاهد عبر Claude ========== */
+/* ========== توليد سيناريو المشاهد عبر Google Gemini (مجاني) ========== */
 async function generateScript(articleText, apiKey){
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
-    method:'POST',
-    headers:{
-      'Content-Type':'application/json',
-      'x-api-key': apiKey,
-      'anthropic-version':'2023-06-01',
-      'anthropic-dangerous-direct-browser-access':'true'
-    },
-    body: JSON.stringify({
-      model:'claude-sonnet-4-5',
-      max_tokens:3000,
-      system:`أنت كاتب سيناريو لفيديوهات وايت بورد أنيميشن. حوّل المقال إلى 5-8 مشاهد.
+  const prompt = `أنت كاتب سيناريو لفيديوهات وايت بورد أنيميشن. حوّل المقال التالي إلى 5-8 مشاهد.
 لكل مشهد: narrationText (جملة أو جملتين بالعربية الفصحى المبسطة، بلا رموز)
 و imagePrompt (كلمة أو كلمتين بالإنجليزية تصف الفكرة البصرية، مثل: idea, chart, people, brain, rocket, document, gear, globe, money, clock, question, check, speaker).
-أعد JSON فقط بلا أي نص إضافي: {"scenes":[{"narrationText":"...","imagePrompt":"..."}]}`,
-      messages:[{role:'user', content: articleText}]
+أعد JSON فقط بلا أي نص إضافي وبلا أسوار Markdown، بالشكل التالي بالضبط:
+{"scenes":[{"narrationText":"...","imagePrompt":"..."}]}
+
+المقال:
+${articleText}`;
+
+  const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
+    method:'POST',
+    headers:{ 'Content-Type':'application/json' },
+    body: JSON.stringify({
+      contents: [{ parts: [{ text: prompt }] }],
+      generationConfig: { temperature: 0.7, maxOutputTokens: 3000 }
     })
   });
-  if(!res.ok){ throw new Error('خطأ من Anthropic: ' + (await res.text())); }
+  if(!res.ok){ throw new Error('خطأ من Gemini: ' + (await res.text())); }
   const data = await res.json();
-  const text = data.content.find(b=>b.type==='text').text;
+  const text = data.candidates[0].content.parts[0].text;
   const cleaned = text.replace(/```json|```/g,'').trim();
   return JSON.parse(cleaned).scenes;
 }
@@ -242,19 +241,19 @@ playBtn.addEventListener('click', ()=>{
 
 /* ========== زر الإنشاء الرئيسي ========== */
 generateBtn.addEventListener('click', async ()=>{
-  const anthropicKey = document.getElementById('anthropicKey').value.trim();
+  const geminiKey = document.getElementById('anthropicKey').value.trim();
   const elevenKey = document.getElementById('elevenKey').value.trim();
   const voiceId = document.getElementById('voiceId').value.trim();
   const article = document.getElementById('article').value.trim();
 
   statusEl.className='status'; 
-  if(!anthropicKey || !elevenKey || !voiceId){ statusEl.textContent='الرجاء تعبئة المفاتيح الثلاثة أولاً.'; statusEl.className='status err'; return; }
+  if(!geminiKey || !elevenKey || !voiceId){ statusEl.textContent='الرجاء تعبئة المفاتيح الثلاثة أولاً.'; statusEl.className='status err'; return; }
   if(article.length<50){ statusEl.textContent='الرجاء لصق مقال لا يقل عن 50 حرفاً.'; statusEl.className='status err'; return; }
 
   generateBtn.disabled=true; playBtn.disabled=true; stage.classList.remove('active'); controlsBar.style.display='none';
   try{
     statusEl.textContent='📝 جاري تحليل المقال وكتابة السيناريو...';
-    const scenes = await generateScript(article, anthropicKey);
+    const scenes = await generateScript(article, geminiKey);
 
     renderedScenes = [];
     for(let i=0;i<scenes.length;i++){
