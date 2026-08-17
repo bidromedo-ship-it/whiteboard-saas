@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>لوحة — فيديو وايت بورد من مقالك</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@500;700;900&display=swap');
+  :root{ --ink:#1a1a1a; --board:#fdfdfb; --accent:#2f6f5e; --accent-soft:#e7f0ed; --bg:#101314; }
+  *{box-sizing:border-box;}
+  body{margin:0; font-family:'Tajawal',sans-serif; background:var(--bg); color:#fff; padding:20px 14px 50px;}
+  .wrap{max-width:720px; margin:0 auto;}
+  h1{font-size:20px; font-weight:900; margin:0 0 4px;}
+  p.sub{color:rgba(255,255,255,.5); font-size:13px; margin:0 0 22px;}
+
+  details{background:#1a1f20; border-radius:12px; padding:14px 16px; margin-bottom:18px;}
+  summary{cursor:pointer; font-weight:700; font-size:14px;}
+  .field{margin-top:12px;}
+  label{display:block; font-size:12px; color:rgba(255,255,255,.6); margin-bottom:4px;}
+  input[type=text], input[type=password], textarea{
+    width:100%; background:#0d0f10; border:1px solid rgba(255,255,255,.12); color:#fff;
+    border-radius:8px; padding:10px 12px; font-family:inherit; font-size:13px;
+  }
+  textarea{min-height:130px; resize:vertical; line-height:1.7;}
+  .hint{font-size:11px; color:rgba(255,255,255,.35); margin-top:4px; line-height:1.6;}
+
+  button{
+    background:var(--accent); color:#fff; border:none; border-radius:9px;
+    padding:11px 20px; font-family:inherit; font-weight:700; font-size:14px; cursor:pointer;
+  }
+  button:disabled{opacity:.4; cursor:default;}
+  button.ghost{background:transparent; border:1.5px solid rgba(255,255,255,.25); color:#fff;}
+  .row{display:flex; gap:10px; flex-wrap:wrap; align-items:center;}
+
+  .status{font-size:13px; color:rgba(255,255,255,.6); margin:14px 0; min-height:18px;}
+  .status.err{color:#ff8a8a;}
+
+  .stage{
+    width:100%; aspect-ratio:16/9; background:var(--board); border-radius:14px;
+    position:relative; overflow:hidden; box-shadow:0 20px 60px rgba(0,0,0,.5);
+    border:8px solid #fff; display:none;
+  }
+  .stage.active{display:block;}
+  svg.scene{position:absolute; inset:0; width:100%; height:100%;}
+  .draw-path{fill:none; stroke:var(--ink); stroke-width:3.2; stroke-linecap:round; stroke-linejoin:round;}
+  .pencil{
+    position:absolute; width:34px; height:34px; font-size:28px; line-height:1;
+    transform:translate(-6px,-24px) rotate(20deg); opacity:0; transition:opacity .15s;
+    filter:drop-shadow(0 2px 3px rgba(0,0,0,.35));
+  }
+  .caption{
+    position:absolute; bottom:0; right:0; left:0;
+    background:linear-gradient(0deg, rgba(0,0,0,.72), rgba(0,0,0,0));
+    color:#fff; padding:24px 20px 12px; font-size:15px; font-weight:500; line-height:1.8;
+    text-align:center; opacity:0; transform:translateY(6px); transition:opacity .35s, transform .35s;
+  }
+  .caption.show{opacity:1; transform:translateY(0);}
+
+  .controls{display:flex; align-items:center; gap:12px; margin-top:14px;}
+  .progress{flex:1; height:5px; background:rgba(255,255,255,.15); border-radius:99px; overflow:hidden;}
+  .progress>div{height:100%; width:0%; background:var(--accent); transition:width .1s linear;}
+  .scene-label{font-size:12px; color:rgba(255,255,255,.5); min-width:60px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>🖊️ لوحة — نسخة تجريبية شخصية</h1>
+  <p class="sub">الصق مقالاً، وسيولّد سيناريو المشاهد والصوت العربي فعلياً عبر مفاتيحك الخاصة.</p>
+
+  <details>
+    <summary>⚙️ مفاتيح الاتصال (تُحفظ في متصفحك فقط، لا تُرسل لأي مكان آخر)</summary>
+    <div class="field">
+      <label>مفتاح Anthropic API</label>
+      <input type="password" id="anthropicKey" placeholder="sk-ant-..." />
+      <div class="hint">من console.anthropic.com — يُستخدم لتحويل مقالك إلى سيناريو مشاهد.</div>
+    </div>
+    <div class="field">
+      <label>مفتاح ElevenLabs API</label>
+      <input type="password" id="elevenKey" placeholder="xi-api-key..." />
+      <div class="hint">من elevenlabs.io/app/settings/api-keys — للتعليق الصوتي العربي.</div>
+    </div>
+    <div class="field">
+      <label>معرّف الصوت العربي (Voice ID)</label>
+      <input type="text" id="voiceId" placeholder="مثال: 21m00Tcm4TlvDq8ikWAM" />
+      <div class="hint">اختر صوتاً من مكتبة ElevenLabs يدعم العربية، وانسخ معرّفه هنا.</div>
+    </div>
+  </details>
+
+  <div class="field">
+    <label>نص المقال</label>
+    <textarea id="article" placeholder="الصق نص المقال هنا..."></textarea>
+  </div>
+
+  <div class="row" style="margin-top:14px;">
+    <button id="generateBtn">إنشاء الفيديو</button>
+    <button class="ghost" id="playBtn" disabled>▶ تشغيل</button>
+  </div>
+  <div class="status" id="status"></div>
+
+  <div class="stage" id="stage">
+    <svg class="scene" id="svg" viewBox="0 0 400 225" preserveAspectRatio="xMidYMid meet"></svg>
+    <div class="pencil" id="pencil">✏️</div>
+    <div class="caption" id="caption"></div>
+  </div>
+  <div class="controls" id="controlsBar" style="display:none;">
+    <div class="progress"><div id="progressBar"></div></div>
+    <div class="scene-label" id="sceneLabel">1 / 1</div>
+  </div>
+</div>
+
+<script>
+/* ========== مكتبة أيقونات جاهزة بأسلوب "خط" (بديل مؤقت لتوليد صور AI الذي يحتاج خادماً) ========== */
+const ICONS = {
+  idea:     { d:"M170,60 a30,30 0 1,1 -0.1,0 M158,85 l24,0 M162,95 l16,0 M170,60 l0,-14 M148,68 l-10,-8 M192,68 l10,-8", len:240 },
+  document: { d:"M130,40 l90,0 l0,140 l-90,0 z M145,65 l60,0 M145,85 l60,0 M145,105 l40,0 M145,125 l50,0", len:400 },
+  chart:    { d:"M110,175 l0,-120 M110,175 l160,0 M120,150 l40,-30 l30,20 l60,-60 M195,80 l15,0 l0,15", len:420 },
+  rocket:   { d:"M200,40 c25,20 30,70 10,110 l-20,20 l-20,-20 c-20,-40 -15,-90 10,-110 z M180,140 l-15,25 M220,140 l15,25 M200,150 a10,10 0 1,1 -0.1,0", len:380 },
+  gear:     { d:"M200,70 a45,45 0 1,1 -0.1,0 M200,115 a15,15 0 1,1 -0.1,0 M200,40 l0,15 M200,155 l0,15 M170,55 l8,13 M222,157 l8,13 M170,155 l-13,8 M230,55 l13,8", len:340 },
+  speaker:  { d:"M120,112 l20,-18 l0,36 z M150,95 l0,34 M165,85 l0,54 M180,75 l0,74", len:260 },
+  brain:    { d:"M170,50 c-30,0 -40,30 -25,45 c-15,10 -10,40 15,45 c5,15 35,15 40,0 c25,-5 30,-35 15,-45 c15,-15 5,-45 -25,-45 c-5,-5 -15,-5 -20,0 z", len:300 },
+  globe:    { d:"M170,110 a55,55 0 1,1 -0.1,0 M115,110 l110,0 M170,55 a75,55 0 0,1 0,110 a75,55 0 0,1 0,-110", len:400 },
+  money:    { d:"M170,60 l0,110 M150,80 c0,-15 40,-15 40,0 c0,15 -40,15 -40,15 c0,15 40,15 40,0", len:260 },
+  people:   { d:"M150,90 a18,18 0 1,1 -0.1,0 M120,160 c0,-30 60,-30 60,0 M225,95 a15,15 0 1,1 -0.1,0 M205,160 c0,-25 45,-25 45,0", len:340 },
+  clock:    { d:"M170,105 a48,48 0 1,1 -0.1,0 M170,75 l0,32 l25,15", len:280 },
+  question: { d:"M150,80 c0,-25 45,-25 45,0 c0,20 -22,18 -22,38 M173,150 a2,2 0 1,1 -0.1,0", len:230 },
+  check:    { d:"M120,110 l35,35 l70,-70", len:180 }
+};
+const KEYWORD_MAP = [
+  [/idea|light|bulb|innovat/i,'idea'],
+  [/document|article|text|book|read/i,'document'],
+  [/chart|graph|growth|increase|data|analytic/i,'chart'],
+  [/rocket|launch|fast|speed|boost/i,'rocket'],
+  [/gear|setting|technology|machine|system|engineer/i,'gear'],
+  [/speak|sound|voice|audio|listen/i,'speaker'],
+  [/brain|mind|think|intelligence|ai\b/i,'brain'],
+  [/globe|world|global|internet|network/i,'globe'],
+  [/money|cost|price|economy|finance|budget/i,'money'],
+  [/people|team|user|person|customer|human/i,'people'],
+  [/clock|time|schedule|duration/i,'clock'],
+  [/question|problem|challenge|issue/i,'question'],
+  [/check|success|solution|done|complete/i,'check'],
+];
+function pickIcon(prompt){
+  for(const [re,key] of KEYWORD_MAP){ if(re.test(prompt)) return ICONS[key]; }
+  return ICONS.idea;
+}
+
+/* ========== توليد سيناريو المشاهد عبر Claude ========== */
+async function generateScript(articleText, apiKey){
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method:'POST',
+    headers:{
+      'Content-Type':'application/json',
+      'x-api-key': apiKey,
+      'anthropic-version':'2023-06-01',
+      'anthropic-dangerous-direct-browser-access':'true'
+    },
+    body: JSON.stringify({
+      model:'claude-sonnet-4-5',
+      max_tokens:3000,
+      system:`أنت كاتب سيناريو لفيديوهات وايت بورد أنيميشن. حوّل المقال إلى 5-8 مشاهد.
+لكل مشهد: narrationText (جملة أو جملتين بالعربية الفصحى المبسطة، بلا رموز)
+و imagePrompt (كلمة أو كلمتين بالإنجليزية تصف الفكرة البصرية، مثل: idea, chart, people, brain, rocket, document, gear, globe, money, clock, question, check, speaker).
+أعد JSON فقط بلا أي نص إضافي: {"scenes":[{"narrationText":"...","imagePrompt":"..."}]}`,
+      messages:[{role:'user', content: articleText}]
+    })
+  });
+  if(!res.ok){ throw new Error('خطأ من Anthropic: ' + (await res.text())); }
+  const data = await res.json();
+  const text = data.content.find(b=>b.type==='text').text;
+  const cleaned = text.replace(/```json|```/g,'').trim();
+  return JSON.parse(cleaned).scenes;
+}
+
+/* ========== توليد الصوت العربي عبر ElevenLabs ========== */
+async function generateSpeech(text, apiKey, voiceId){
+  const res = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
+    method:'POST',
+    headers:{ 'Content-Type':'application/json', 'xi-api-key': apiKey },
+    body: JSON.stringify({
+      text, model_id:'eleven_multilingual_v2',
+      voice_settings:{ stability:0.5, similarity_boost:0.75, style:0.3, use_speaker_boost:true }
+    })
+  });
+  if(!res.ok){ throw new Error('خطأ من ElevenLabs: ' + (await res.text())); }
+  const blob = await res.blob();
+  return URL.createObjectURL(blob);
+}
+
+/* ========== محرك الرسم والتشغيل ========== */
+const svg=document.getElementById('svg'), pencil=document.getElementById('pencil'), caption=document.getElementById('caption');
+const stage=document.getElementById('stage'), controlsBar=document.getElementById('controlsBar');
+const progressBar=document.getElementById('progressBar'), sceneLabel=document.getElementById('sceneLabel');
+const statusEl=document.getElementById('status'), playBtn=document.getElementById('playBtn'), generateBtn=document.getElementById('generateBtn');
+
+let renderedScenes = []; // { narrationText, icon, audioUrl }
+let sceneIndex=0, playing=false, raf=null, sceneStart=0, currentAudio=null;
+
+function buildSceneVisual(icon, text){
+  svg.innerHTML='';
+  const el=document.createElementNS('http://www.w3.org/2000/svg','path');
+  el.setAttribute('d', icon.d); el.setAttribute('class','draw-path');
+  el.setAttribute('stroke-dasharray', icon.len); el.setAttribute('stroke-dashoffset', icon.len);
+  svg.appendChild(el);
+  caption.textContent = text; caption.classList.remove('show'); pencil.style.opacity='0';
+  return el;
+}
+function getPointAt(el,len,t){ try{ return el.getPointAtLength(len*t); }catch(e){ return {x:200,y:112}; } }
+
+function playScene(index){
+  if(index>=renderedScenes.length){ playing=false; playBtn.textContent='▶ تشغيل'; return; }
+  sceneIndex=index; sceneLabel.textContent=(index+1)+' / '+renderedScenes.length;
+  const scene=renderedScenes[index];
+  const el=buildSceneVisual(scene.icon, scene.narrationText);
+
+  currentAudio = new Audio(scene.audioUrl);
+  currentAudio.play().catch(()=>{});
+  const duration = (currentAudio.duration && !isNaN(currentAudio.duration)) ? currentAudio.duration*1000 : 4000;
+  sceneStart = performance.now();
+  const drawEnd = duration*0.78;
+
+  function frame(now){
+    const elapsed = now - sceneStart;
+    const t = Math.min(1, elapsed/drawEnd);
+    el.setAttribute('stroke-dashoffset', scene.icon.len*(1-t));
+    if(t>0 && t<1){
+      const p = getPointAt(el, scene.icon.len, t);
+      pencil.style.left=(p.x/400*100)+'%'; pencil.style.top=(p.y/225*100)+'%'; pencil.style.opacity='1';
+    }
+    if(t>=1){ pencil.style.opacity='0'; caption.classList.add('show'); }
+    progressBar.style.width = Math.min(100, elapsed/duration*100)+'%';
+    if(elapsed<duration && playing){ raf=requestAnimationFrame(frame); }
+    else if(playing){ if(currentAudio) currentAudio.pause(); playScene(index+1); }
+  }
+  raf=requestAnimationFrame(frame);
+}
+
+playBtn.addEventListener('click', ()=>{
+  if(playing){ playing=false; playBtn.textContent='▶ تشغيل'; cancelAnimationFrame(raf); if(currentAudio) currentAudio.pause(); }
+  else{ playing=true; playBtn.textContent='⏸ إيقاف'; playScene(sceneIndex); }
+});
+
+/* ========== زر الإنشاء الرئيسي ========== */
+generateBtn.addEventListener('click', async ()=>{
+  const anthropicKey = document.getElementById('anthropicKey').value.trim();
+  const elevenKey = document.getElementById('elevenKey').value.trim();
+  const voiceId = document.getElementById('voiceId').value.trim();
+  const article = document.getElementById('article').value.trim();
+
+  statusEl.className='status'; 
+  if(!anthropicKey || !elevenKey || !voiceId){ statusEl.textContent='الرجاء تعبئة المفاتيح الثلاثة أولاً.'; statusEl.className='status err'; return; }
+  if(article.length<50){ statusEl.textContent='الرجاء لصق مقال لا يقل عن 50 حرفاً.'; statusEl.className='status err'; return; }
+
+  generateBtn.disabled=true; playBtn.disabled=true; stage.classList.remove('active'); controlsBar.style.display='none';
+  try{
+    statusEl.textContent='📝 جاري تحليل المقال وكتابة السيناريو...';
+    const scenes = await generateScript(article, anthropicKey);
+
+    renderedScenes = [];
+    for(let i=0;i<scenes.length;i++){
+      statusEl.textContent = `🎙️ توليد الصوت العربي (${i+1}/${scenes.length})...`;
+      const audioUrl = await generateSpeech(scenes[i].narrationText, elevenKey, voiceId);
+      renderedScenes.push({ narrationText: scenes[i].narrationText, icon: pickIcon(scenes[i].imagePrompt), audioUrl });
+    }
+
+    statusEl.textContent = `✅ جاهز! ${renderedScenes.length} مشاهد. اضغط تشغيل.`;
+    stage.classList.add('active'); controlsBar.style.display='flex'; playBtn.disabled=false;
+    sceneIndex=0; buildSceneVisual(renderedScenes[0].icon, renderedScenes[0].narrationText);
+    sceneLabel.textContent = '1 / '+renderedScenes.length;
+  }catch(e){
+    statusEl.textContent = '❌ ' + e.message;
+    statusEl.className='status err';
+  }finally{
+    generateBtn.disabled=false;
+  }
+});
+</script>
+</body>
+</html>
