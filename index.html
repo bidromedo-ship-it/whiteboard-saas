@@ -114,41 +114,51 @@
   </div>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/imagetracerjs@1.2.6/imagetracer_v1.2.6.js"></script>
 <script>
-/* ========== مكتبة أيقونات جاهزة بأسلوب "خط" (بديل مؤقت لتوليد صور AI الذي يحتاج خادماً) ========== */
-const ICONS = {
-  idea:     { d:"M170,60 a30,30 0 1,1 -0.1,0 M158,85 l24,0 M162,95 l16,0 M170,60 l0,-14 M148,68 l-10,-8 M192,68 l10,-8", len:240 },
-  document: { d:"M130,40 l90,0 l0,140 l-90,0 z M145,65 l60,0 M145,85 l60,0 M145,105 l40,0 M145,125 l50,0", len:400 },
-  chart:    { d:"M110,175 l0,-120 M110,175 l160,0 M120,150 l40,-30 l30,20 l60,-60 M195,80 l15,0 l0,15", len:420 },
-  rocket:   { d:"M200,40 c25,20 30,70 10,110 l-20,20 l-20,-20 c-20,-40 -15,-90 10,-110 z M180,140 l-15,25 M220,140 l15,25 M200,150 a10,10 0 1,1 -0.1,0", len:380 },
-  gear:     { d:"M200,70 a45,45 0 1,1 -0.1,0 M200,115 a15,15 0 1,1 -0.1,0 M200,40 l0,15 M200,155 l0,15 M170,55 l8,13 M222,157 l8,13 M170,155 l-13,8 M230,55 l13,8", len:340 },
-  speaker:  { d:"M120,112 l20,-18 l0,36 z M150,95 l0,34 M165,85 l0,54 M180,75 l0,74", len:260 },
-  brain:    { d:"M170,50 c-30,0 -40,30 -25,45 c-15,10 -10,40 15,45 c5,15 35,15 40,0 c25,-5 30,-35 15,-45 c15,-15 5,-45 -25,-45 c-5,-5 -15,-5 -20,0 z", len:300 },
-  globe:    { d:"M170,110 a55,55 0 1,1 -0.1,0 M115,110 l110,0 M170,55 a75,55 0 0,1 0,110 a75,55 0 0,1 0,-110", len:400 },
-  money:    { d:"M170,60 l0,110 M150,80 c0,-15 40,-15 40,0 c0,15 -40,15 -40,15 c0,15 40,15 40,0", len:260 },
-  people:   { d:"M150,90 a18,18 0 1,1 -0.1,0 M120,160 c0,-30 60,-30 60,0 M225,95 a15,15 0 1,1 -0.1,0 M205,160 c0,-25 45,-25 45,0", len:340 },
-  clock:    { d:"M170,105 a48,48 0 1,1 -0.1,0 M170,75 l0,32 l25,15", len:280 },
-  question: { d:"M150,80 c0,-25 45,-25 45,0 c0,20 -22,18 -22,38 M173,150 a2,2 0 1,1 -0.1,0", len:230 },
-  check:    { d:"M120,110 l35,35 l70,-70", len:180 }
-};
-const KEYWORD_MAP = [
-  [/idea|light|bulb|innovat/i,'idea'],
-  [/document|article|text|book|read/i,'document'],
-  [/chart|graph|growth|increase|data|analytic/i,'chart'],
-  [/rocket|launch|fast|speed|boost/i,'rocket'],
-  [/gear|setting|technology|machine|system|engineer/i,'gear'],
-  [/speak|sound|voice|audio|listen/i,'speaker'],
-  [/brain|mind|think|intelligence|ai\b/i,'brain'],
-  [/globe|world|global|internet|network/i,'globe'],
-  [/money|cost|price|economy|finance|budget/i,'money'],
-  [/people|team|user|person|customer|human/i,'people'],
-  [/clock|time|schedule|duration/i,'clock'],
-  [/question|problem|challenge|issue/i,'question'],
-  [/check|success|solution|done|complete/i,'check'],
-];
-function pickIcon(prompt){
-  for(const [re,key] of KEYWORD_MAP){ if(re.test(prompt)) return ICONS[key]; }
-  return ICONS.idea;
+/* ========== توليد صورة AI حقيقية لكل مشهد (Pollinations.ai — مجاني، بدون مفتاح، يعمل من المتصفح مباشرة) ========== */
+async function generateSceneImage(prompt){
+  const styledPrompt = prompt + ', simple black and white line art sketch, whiteboard doodle style, minimal clean single-line drawing, white background, no shading, no color, no text, no watermark';
+  const seed = Math.floor(Math.random()*1000000);
+  const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(styledPrompt)}?width=320&height=180&nologo=true&seed=${seed}`;
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error('فشل توليد صورة المشهد'));
+    img.src = url;
+  });
+}
+
+/* ========== تحويل الصورة إلى مسارات SVG قابلة للرسم التدريجي (ImageTracer.js — يعمل بالكامل بالمتصفح) ========== */
+function traceImageToPaths(img){
+  const canvas = document.createElement('canvas');
+  canvas.width = img.naturalWidth || img.width;
+  canvas.height = img.naturalHeight || img.height;
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+  const imagedata = ctx.getImageData(0, 0, canvas.width, canvas.height);
+
+  const svgstr = ImageTracer.imagedataToSVG(imagedata, {
+    ltres: 1, qtres: 1, pathomit: 10, numberofcolors: 4,
+    colorsampling: 0, scale: 1, strokewidth: 0, viewbox: true
+  });
+
+  const holder = document.createElement('div');
+  holder.style.cssText = 'position:absolute; opacity:0; pointer-events:none; top:-9999px;';
+  holder.innerHTML = svgstr;
+  document.body.appendChild(holder);
+  const svgEl = holder.querySelector('svg');
+  let pathEls = svgEl ? Array.from(svgEl.querySelectorAll('path')) : [];
+
+  let paths = pathEls.map(p => {
+    let len = 0;
+    try { len = p.getTotalLength(); } catch(e){}
+    return { d: p.getAttribute('d'), len };
+  }).filter(p => p.len > 4).sort((a,b) => b.len - a.len).slice(0, 35);
+
+  document.body.removeChild(holder);
+  return { paths, width: canvas.width, height: canvas.height };
 }
 
 /* ========== جلب الأصوات المتاحة فعلياً بحساب المستخدم (تفادياً لأخطاء الصلاحيات) ========== */
@@ -190,7 +200,7 @@ document.getElementById('fetchVoicesBtn').addEventListener('click', async () => 
 async function generateScript(articleText, apiKey){
   const prompt = `أنت كاتب سيناريو لفيديوهات وايت بورد أنيميشن. حوّل المقال التالي إلى 5-8 مشاهد.
 لكل مشهد: narrationText (جملة أو جملتين بالعربية الفصحى المبسطة، بلا رموز)
-و imagePrompt (كلمة أو كلمتين بالإنجليزية تصف الفكرة البصرية، مثل: idea, chart, people, brain, rocket, document, gear, globe, money, clock, question, check, speaker).
+و imagePrompt (وصف بصري قصير بالإنجليزية، 4-8 كلمات، يعبّر تحديداً عن مضمون narrationText بشكل ملموس وقابل للرسم — وليس كلمة عامة واحدة).
 أعد JSON فقط بلا أي نص إضافي وبلا أسوار Markdown، بالشكل التالي بالضبط:
 {"scenes":[{"narrationText":"...","imagePrompt":"..."}]}
 
@@ -233,25 +243,30 @@ const stage=document.getElementById('stage'), controlsBar=document.getElementByI
 const progressBar=document.getElementById('progressBar'), sceneLabel=document.getElementById('sceneLabel');
 const statusEl=document.getElementById('status'), playBtn=document.getElementById('playBtn'), generateBtn=document.getElementById('generateBtn');
 
-let renderedScenes = []; // { narrationText, icon, audioUrl }
+let renderedScenes = []; // { narrationText, paths, width, height, audioUrl }
 let sceneIndex=0, playing=false, raf=null, sceneStart=0, currentAudio=null;
 
-function buildSceneVisual(icon, text){
+function buildSceneVisual(scene){
   svg.innerHTML='';
-  const el=document.createElementNS('http://www.w3.org/2000/svg','path');
-  el.setAttribute('d', icon.d); el.setAttribute('class','draw-path');
-  el.setAttribute('stroke-dasharray', icon.len); el.setAttribute('stroke-dashoffset', icon.len);
-  svg.appendChild(el);
-  caption.textContent = text; caption.classList.remove('show'); pencil.style.opacity='0';
-  return el;
+  svg.setAttribute('viewBox', `0 0 ${scene.width} ${scene.height}`);
+  const els = scene.paths.map(p => {
+    const el=document.createElementNS('http://www.w3.org/2000/svg','path');
+    el.setAttribute('d', p.d); el.setAttribute('class','draw-path');
+    el.setAttribute('stroke-dasharray', p.len); el.setAttribute('stroke-dashoffset', p.len);
+    svg.appendChild(el);
+    return { el, len: p.len };
+  });
+  caption.textContent = scene.narrationText; caption.classList.remove('show'); pencil.style.opacity='0';
+  return els;
 }
-function getPointAt(el,len,t){ try{ return el.getPointAtLength(len*t); }catch(e){ return {x:200,y:112}; } }
+function getPointAt(el,len,t){ try{ return el.getPointAtLength(len*t); }catch(e){ return {x:0,y:0}; } }
 
 function playScene(index){
   if(index>=renderedScenes.length){ playing=false; playBtn.textContent='▶ تشغيل'; return; }
   sceneIndex=index; sceneLabel.textContent=(index+1)+' / '+renderedScenes.length;
   const scene=renderedScenes[index];
-  const el=buildSceneVisual(scene.icon, scene.narrationText);
+  const els=buildSceneVisual(scene);
+  const totalLen = els.reduce((s,p)=>s+p.len, 0) || 1;
 
   currentAudio = new Audio(scene.audioUrl);
   currentAudio.play().catch(()=>{});
@@ -261,13 +276,22 @@ function playScene(index){
 
   function frame(now){
     const elapsed = now - sceneStart;
-    const t = Math.min(1, elapsed/drawEnd);
-    el.setAttribute('stroke-dashoffset', scene.icon.len*(1-t));
-    if(t>0 && t<1){
-      const p = getPointAt(el, scene.icon.len, t);
-      pencil.style.left=(p.x/400*100)+'%'; pencil.style.top=(p.y/225*100)+'%'; pencil.style.opacity='1';
+    const overallT = Math.min(1, elapsed/drawEnd);
+    let cumulative = 0, cursorPoint = null;
+    els.forEach(p => {
+      const segStart = cumulative/totalLen;
+      cumulative += p.len;
+      const segEnd = cumulative/totalLen;
+      const local = Math.max(0, Math.min(1, (overallT-segStart)/(segEnd-segStart || 1)));
+      p.el.setAttribute('stroke-dashoffset', p.len*(1-local));
+      if(local>0 && local<1){ cursorPoint = getPointAt(p.el, p.len, local); }
+    });
+    if(cursorPoint){
+      pencil.style.left=(cursorPoint.x/scene.width*100)+'%';
+      pencil.style.top=(cursorPoint.y/scene.height*100)+'%';
+      pencil.style.opacity='1';
     }
-    if(t>=1){ pencil.style.opacity='0'; caption.classList.add('show'); }
+    if(overallT>=1){ pencil.style.opacity='0'; caption.classList.add('show'); }
     progressBar.style.width = Math.min(100, elapsed/duration*100)+'%';
     if(elapsed<duration && playing){ raf=requestAnimationFrame(frame); }
     else if(playing){ if(currentAudio) currentAudio.pause(); playScene(index+1); }
@@ -298,14 +322,23 @@ generateBtn.addEventListener('click', async ()=>{
 
     renderedScenes = [];
     for(let i=0;i<scenes.length;i++){
+      statusEl.textContent = `🎨 توليد رسمة المشهد بالذكاء الاصطناعي (${i+1}/${scenes.length})...`;
+      const img = await generateSceneImage(scenes[i].imagePrompt);
+      const traced = traceImageToPaths(img);
+
       statusEl.textContent = `🎙️ توليد الصوت العربي (${i+1}/${scenes.length})...`;
       const audioUrl = await generateSpeech(scenes[i].narrationText, elevenKey, voiceId);
-      renderedScenes.push({ narrationText: scenes[i].narrationText, icon: pickIcon(scenes[i].imagePrompt), audioUrl });
+
+      renderedScenes.push({
+        narrationText: scenes[i].narrationText,
+        paths: traced.paths, width: traced.width, height: traced.height,
+        audioUrl
+      });
     }
 
     statusEl.textContent = `✅ جاهز! ${renderedScenes.length} مشاهد. اضغط تشغيل.`;
     stage.classList.add('active'); controlsBar.style.display='flex'; playBtn.disabled=false;
-    sceneIndex=0; buildSceneVisual(renderedScenes[0].icon, renderedScenes[0].narrationText);
+    sceneIndex=0; buildSceneVisual(renderedScenes[0]);
     sceneLabel.textContent = '1 / '+renderedScenes.length;
   }catch(e){
     statusEl.textContent = '❌ ' + e.message;
