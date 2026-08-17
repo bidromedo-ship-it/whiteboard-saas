@@ -80,9 +80,15 @@
       <div class="hint">من elevenlabs.io/app/settings/api-keys — للتعليق الصوتي العربي.</div>
     </div>
     <div class="field">
-      <label>معرّف الصوت العربي (Voice ID)</label>
-      <input type="text" id="voiceId" placeholder="مثال: 21m00Tcm4TlvDq8ikWAM" />
-      <div class="hint">اختر صوتاً من مكتبة ElevenLabs يدعم العربية، وانسخ معرّفه هنا.</div>
+      <label>الصوت العربي</label>
+      <div class="row">
+        <button type="button" class="ghost" id="fetchVoicesBtn" style="padding:9px 14px; font-size:13px;">جلب أصواتي المتاحة</button>
+        <span class="hint" id="fetchVoicesStatus" style="margin:0;"></span>
+      </div>
+      <select id="voiceId" style="width:100%; background:#0d0f10; border:1px solid rgba(255,255,255,.12); color:#fff; border-radius:8px; padding:10px 12px; font-family:inherit; font-size:13px; margin-top:8px;">
+        <option value="">— اضغط "جلب أصواتي المتاحة" أولاً —</option>
+      </select>
+      <div class="hint">يجلب فقط الأصوات المتاحة فعلياً بحسابك، لتفادي أخطاء "صوت غير مصرّح به".</div>
     </div>
   </details>
 
@@ -144,6 +150,41 @@ function pickIcon(prompt){
   for(const [re,key] of KEYWORD_MAP){ if(re.test(prompt)) return ICONS[key]; }
   return ICONS.idea;
 }
+
+/* ========== جلب الأصوات المتاحة فعلياً بحساب المستخدم (تفادياً لأخطاء الصلاحيات) ========== */
+document.getElementById('fetchVoicesBtn').addEventListener('click', async () => {
+  const elevenKey = document.getElementById('elevenKey').value.trim();
+  const statusSpan = document.getElementById('fetchVoicesStatus');
+  const select = document.getElementById('voiceId');
+  if(!elevenKey){ statusSpan.textContent = 'أدخل مفتاح ElevenLabs أولاً.'; statusSpan.style.color = '#ff8a8a'; return; }
+
+  statusSpan.textContent = 'جاري الجلب...'; statusSpan.style.color = '';
+  try{
+    const res = await fetch('https://api.elevenlabs.io/v1/voices', {
+      headers: { 'xi-api-key': elevenKey }
+    });
+    if(!res.ok){ throw new Error(await res.text()); }
+    const data = await res.json();
+    select.innerHTML = '';
+    if(!data.voices || data.voices.length === 0){
+      select.innerHTML = '<option value="">لا توجد أصوات متاحة بحسابك</option>';
+      statusSpan.textContent = 'الحساب لا يملك أصواتاً متاحة عبر API حالياً.';
+      statusSpan.style.color = '#ff8a8a';
+      return;
+    }
+    data.voices.forEach(v => {
+      const opt = document.createElement('option');
+      opt.value = v.voice_id;
+      opt.textContent = `${v.name} (${v.category || 'صوت'})`;
+      select.appendChild(opt);
+    });
+    statusSpan.textContent = `تم جلب ${data.voices.length} صوت متاح.`;
+    statusSpan.style.color = '#7fd9c4';
+  }catch(e){
+    statusSpan.textContent = 'فشل الجلب — تأكد من صحة المفتاح.';
+    statusSpan.style.color = '#ff8a8a';
+  }
+});
 
 /* ========== توليد سيناريو المشاهد عبر Google Gemini (مجاني) ========== */
 async function generateScript(articleText, apiKey){
